@@ -1,412 +1,547 @@
-:root {
-  --bg: #07111f;
-  --panel: rgba(15, 23, 42, 0.8);
-  --panel-strong: #0f172a;
-  --primary: #67e8f9;
-  --secondary: #34d399;
-  --accent: #a78bfa;
-  --text: #e5eefb;
-  --muted: #a5b4c8;
-  --danger: #fb7185;
-  --success: #4ade80;
-  --line: rgba(148, 163, 184, 0.2);
-  --shadow: rgba(2, 6, 23, 0.35);
-  --radius: 18px;
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const dotenv = require('dotenv');
+const OpenAI = require('openai');
+const cors = require('cors');
+const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const GitHubStrategy = require('passport-github2').Strategy;
+const Stripe = require('stripe');
+const { Client } = require('pg');
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'productcopy-dev-secret';
+const USERS_FILE = path.join(__dirname, 'data', 'users.json');
+const HISTORY_FILE = path.join(__dirname, 'data', 'history.json');
+const DATABASE_URL = process.env.DATABASE_URL || '';
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const useDatabase = Boolean(DATABASE_URL);
+
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'productcopy-session-secret',
+  resave: false,
+  saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
+function ensureDataFiles() {
+  fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+  if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
+  if (!fs.existsSync(HISTORY_FILE)) fs.writeFileSync(HISTORY_FILE, JSON.stringify([], null, 2));
 }
 
-* { box-sizing: border-box; }
-html, body {
-  margin: 0;
-  min-height: 100%;
-  font-family: 'Inter', sans-serif;
-  background:
-    radial-gradient(circle at top, rgba(103, 232, 249, 0.12), transparent 28%),
-    linear-gradient(135deg, #020817, #0d172a 38%, #111827);
-  color: var(--text);
+async function initDatabase() {
+  if (!useDatabase) return;
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE,
+      name VARCHAR(255),
+      password VARCHAR(255),
+      provider VARCHAR(50) DEFAULT 'local',
+      plan VARCHAR(50) DEFAULT 'free',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS history (
+      id SERIAL PRIMARY KEY,
+      user_id INT REFERENCES users(id),
+      product_name VARCHAR(255),
+      category VARCHAR(255),
+      audience TEXT,
+      tone VARCHAR(255),
+      keyword VARCHAR(255),
+      template VARCHAR(255),
+      result JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await client.end();
 }
 
-a { color: inherit; text-decoration: none; }
-button, input, select, textarea {
-  font: inherit;
-}
-
-body.logged-in {
-  background: #08111d;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px 18px 80px;
-}
-
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  padding: 14px 0 26px;
-}
-
-.brand {
-  font-size: 1.7rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.nav {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.nav button, .primary-btn, .ghost-btn, .danger-btn {
-  border: 1px solid var(--line);
-  background: rgba(15, 23, 42, 0.7);
-  color: var(--text);
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.primary-btn {
-  background: linear-gradient(135deg, var(--secondary), var(--primary), var(--accent));
-  color: #07131d;
-  border: none;
-  box-shadow: 0 16px 32px rgba(117, 209, 255, 0.3);
-}
-
-.ghost-btn {
-  background: rgba(103, 232, 249, 0.08);
-}
-
-.danger-btn {
-  background: rgba(251, 113, 133, 0.12);
-  border-color: rgba(251, 113, 133, 0.4);
-  color: #fecdd3;
-}
-
-.hero {
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 28px;
-  align-items: center;
-  min-height: 500px;
-}
-
-.hero-copy {
-  padding: 24px 0;
-}
-
-.kicker {
-  display: inline-block;
-  background: rgba(103, 232, 249, 0.08);
-  border: 1px solid rgba(103, 232, 249, 0.22);
-  border-radius: 999px;
-  padding: 8px 13px;
-  font-size: 12px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--primary);
-  margin-bottom: 16px;
-}
-
-h1 {
-  font-size: clamp(2.6rem, 5vw, 4.7rem);
-  line-height: 1.03;
-  margin: 0 0 18px;
-  letter-spacing: -0.05em;
-}
-
-.gradient-text {
-  background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.hero-copy p {
-  max-width: 620px;
-  font-size: 1.08rem;
-  color: var(--muted);
-  line-height: 1.8;
-}
-
-.hero-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 28px;
-  flex-wrap: wrap;
-}
-
-.hero-card {
-  background: rgba(15, 23, 42, 0.82);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 26px;
-  box-shadow: 0 26px 44px var(--shadow);
-}
-
-.preview-window {
-  background: rgba(2, 6, 23, 0.75);
-  border: 1px solid rgba(103, 232, 249, 0.18);
-  border-radius: 16px;
-  padding: 16px;
-}
-
-.preview-box {
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  padding: 18px;
-  margin-bottom: 16px;
-}
-.preview-box:last-child { margin-bottom: 0; }
-.small-label {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.preview-box strong {
-  display: block;
-  margin-top: 12px;
-  font-size: 1.2rem;
-}
-.preview-box p {
-  color: var(--muted);
-  margin: 8px 0 0;
-  line-height: 1.6;
-}
-
-.section {
-  margin-top: 70px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.section-header h2 {
-  margin: 0;
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-}
-
-.pricing-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.pricing-card {
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  padding: 22px;
-  position: relative;
-  overflow: hidden;
-}
-
-.pricing-card.featured {
-  background: linear-gradient(180deg, rgba(16, 44, 54, 0.8), rgba(15, 23, 42, 0.9));
-  border-color: rgba(103, 232, 249, 0.45);
-  transform: scale(1.02);
-}
-
-.badge {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(103, 232, 249, 0.1);
-  border: 1px solid rgba(103, 232, 249, 0.3);
-  color: var(--primary);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 12px;
-}
-
-.price {
-  font-size: 2.3rem;
-  font-weight: 900;
-  margin: 10px 0;
-}
-
-.price small {
-  font-size: 1rem;
-  color: var(--muted);
-}
-
-.pricing-card ul {
-  padding-left: 18px;
-  color: var(--muted);
-  line-height: 2;
-}
-
-.auth-panel {
-  max-width: 420px;
-  margin: 40px auto 0;
-  background: rgba(15, 23, 42, 0.86);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 20px;
-  box-shadow: 0 24px 44px rgba(0,0,0,0.18);
-}
-
-.auth-panel h2 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  font-size: 1.8rem;
-}
-
-.form-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.input, .select, .textarea {
-  width: 100%;
-  padding: 12px 14px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  color: var(--text);
-}
-
-.textarea {
-  resize: vertical;
-  min-height: 110px;
-}
-
-.switch-row {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 14px;
-  color: var(--muted);
-  font-size: 0.94rem;
-}
-
-.switch-row button {
-  background: transparent;
-  border: none;
-  color: var(--primary);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.dashboard {
-  padding-top: 8px;
-}
-
-.dashboard-shell {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 22px;
-}
-
-.sidebar, .main-panel {
-  background: rgba(15, 23, 42, 0.84);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 22px;
-}
-
-.sidebar h3, .main-panel h3 {
-  margin-top: 0;
-  margin-bottom: 12px;
-  font-size: 1.1rem;
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.stat-box {
-  background: rgba(103, 232, 249, 0.05);
-  border: 1px solid rgba(103, 232, 249, 0.18);
-  border-radius: 16px;
-  padding: 18px 14px;
-}
-
-.stat-box .num {
-  font-size: 1.8rem;
-  font-weight: 800;
-  margin-bottom: 6px;
-}
-
-.history-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.history-item {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
-}
-
-.history-item strong {
-  display: block;
-  margin-bottom: 8px;
-}
-
-.history-item small {
-  color: var(--muted);
-}
-
-.output-block {
-  margin-top: 18px;
-  display: grid;
-  gap: 18px;
-}
-
-.output-card {
-  background: rgba(9, 14, 25, 0.65);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
-}
-
-.output-card h4 {
-  margin: 0 0 10px;
-  color: var(--primary);
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.output-card p, .output-card li {
-  color: var(--text);
-  line-height: 1.8;
-}
-
-.output-card ul {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.hidden { display: none !important; }
-
-@media (max-width: 920px) {
-  .hero, .dashboard-shell, .pricing-grid {
-    grid-template-columns: 1fr;
-  }
-  .topbar {
-    flex-wrap: wrap;
+function readJson(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    return [];
   }
 }
+
+function writeJson(filePath, data) {
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+function signToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, provider: user.provider || 'local' }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+async function getUsersDb() {
+  if (!useDatabase) return readJson(USERS_FILE);
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  const result = await client.query('SELECT * FROM users ORDER BY created_at DESC');
+  await client.end();
+  return result.rows.map(row => ({
+    id: String(row.id),
+    email: row.email,
+    name: row.name,
+    password: row.password,
+    provider: row.provider,
+    plan: row.plan,
+    createdAt: row.created_at
+  }));
+}
+
+async function insertUserDb(user) {
+  if (!useDatabase) {
+    const users = readJson(USERS_FILE);
+    users.push(user);
+    writeJson(USERS_FILE, users);
+    return user;
+  }
+
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  const result = await client.query(
+    `INSERT INTO users (email, name, password, provider, plan) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name, provider, plan, created_at`,
+    [user.email, user.name, user.password, user.provider || 'local', user.plan || 'free']
+  );
+  await client.end();
+  const saved = result.rows[0];
+  return {
+    id: String(saved.id),
+    email: saved.email,
+    name: saved.name,
+    password: saved.password,
+    provider: saved.provider,
+    plan: saved.plan,
+    createdAt: saved.created_at
+  };
+}
+
+async function getHistoryDb(userId) {
+  if (!useDatabase) {
+    const history = readJson(HISTORY_FILE);
+    return history.filter(item => item.userId === userId).slice(0, 20);
+  }
+
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  const result = await client.query(
+    'SELECT * FROM history WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20',
+    [Number(userId)]
+  );
+  await client.end();
+  return result.rows.map(row => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    createdAt: row.created_at,
+    payload: {
+      productName: row.product_name,
+      category: row.category,
+      audience: row.audience,
+      tone: row.tone,
+      keyword: row.keyword,
+      template: row.template
+    },
+    result: row.result
+  }));
+}
+
+async function saveHistoryDb(entry) {
+  if (!useDatabase) {
+    const history = readJson(HISTORY_FILE);
+    history.unshift(entry);
+    writeJson(HISTORY_FILE, history);
+    return;
+  }
+
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  await client.query(
+    `INSERT INTO history (user_id, product_name, category, audience, tone, keyword, template, result) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [Number(entry.userId), entry.payload.productName, entry.payload.category, entry.payload.audience, entry.payload.tone, entry.payload.keyword, entry.payload.template, JSON.stringify(entry.result)]
+  );
+  await client.end();
+}
+
+function authMiddleware(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+function getTemplateMap() {
+  return {
+    'Landing page': {
+      headline: 'Giải pháp tối ưu cho người mua trong {category}',
+      output: 'Không chỉ là sản phẩm, mà là giải pháp giúp bạn tiết kiệm thời gian và nâng cao trải nghiệm mỗi ngày.'
+    },
+    'Instagram ad': {
+      headline: 'Dễ dàng sở hữu ngay hôm nay',
+      output: 'Một sản phẩm gọn nhẹ, tiện lợi và phù hợp với mọi nhu cầu hiện đại.'
+    },
+    'Amazon product title': {
+      headline: 'Bán chạy nhất cho {category}',
+      output: 'Thiết kế đẹp, chất lượng đáng tin cậy và dễ sử dụng.'
+    },
+    'Shopify product': {
+      headline: 'Sản phẩm mới đã có mặt',
+      output: 'Mỗi chi tiết đều hướng đến sự tiện lợi, hiệu quả và giá trị thực tế.'
+    },
+    'Email promo': {
+      headline: 'Mở khóa ưu đãi hấp dẫn chỉ trong hôm nay',
+      output: 'Khuyến mãi đặc biệt, dễ thưởng thức và phù hợp với mọi nhu cầu.'
+    },
+    'Meta description': {
+      headline: 'Mô tả chuẩn SEO',
+      output: 'Sản phẩm được tối ưu cho hiệu suất, chất lượng và trải nghiệm khách hàng.'
+    }
+  };
+}
+
+function generateFallbackCopy({ productName, category, audience, tone, keyword, template = 'Landing page' }) {
+  const safeName = productName || 'Sản phẩm';
+  const safeCategory = category || 'Gia dụng';
+  const safeAudience = audience || 'khách hàng hiện đại';
+  const safeTone = tone || 'Thực dụng';
+  const safeKeyword = keyword || safeName;
+  const templateMap = getTemplateMap();
+
+  const toneMap = {
+    'Thực dụng': 'mang lại sự đơn giản, tiện lợi và hiệu quả cho mọi nhu cầu hằng ngày.',
+    'Premium': 'mang đến sự sang trọng, đẳng cấp và trải nghiệm cao cấp.',
+    'Hấp dẫn': 'khiến sản phẩm bứt phá ngay từ cái nhìn đầu tiên.',
+    'Đồng hồ giỏi': 'tối ưu hiệu năng, độ bền và trải nghiệm mượt mà.',
+    'Vui tươi': 'mang cảm giác thoải mái, sáng tạo và dễ yêu thích.'
+  };
+
+  const title = `${safeName} - ${safeKeyword} | ${templateMap[template]?.headline || 'Chất lượng'} ${safeCategory}`;
+  const description = `${safeName} là lựa chọn phù hợp cho ${safeAudience}. Sản phẩm này ${toneMap[safeTone] || toneMap['Thực dụng']} ${templateMap[template]?.output || 'Thiết kế phù hợp cho mọi nhu cầu hiện đại.'}`;
+
+  const benefits = [
+    `Thiết kế phù hợp với ${safeAudience}.`,
+    'Dễ sử dụng, tiện lợi cho mọi nhu cầu hằng ngày.',
+    'Chất lượng được tối ưu cho độ bền và hiệu suất.',
+    'Tạo sự khác biệt trong trải nghiệm mua sắm và sử dụng.'
+  ];
+
+  const adCopy = `Tận dụng ngay ${safeName} để mang lại sự tiện lợi tối ưu cho cuộc sống của bạn. ${safeName} ${toneMap[safeTone] || toneMap['Thực dụng']} Đặt hàng ngay hôm nay để trải nghiệm sự khác biệt.`;
+  const seo = [
+    safeKeyword,
+    `${safeKeyword} chất lượng cao`,
+    `${safeKeyword} giá tốt`,
+    `${safeKeyword} cho ${safeAudience}`,
+    `${safeCategory.toLowerCase()} tiện lợi`,
+    `${safeName} mới nhất`,
+    template
+  ].join(', ');
+
+  return {
+    title,
+    description,
+    benefits,
+    adCopy,
+    seo,
+    template,
+    mode: 'local'
+  };
+}
+
+async function generateAIProductCopy({ productName, category, audience, tone, keyword, template = 'Landing page' }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return generateFallbackCopy({ productName, category, audience, tone, keyword, template });
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Bạn là chuyên gia marketing và copywriting. Hãy tạo tiêu đề, mô tả ngắn, lợi ích, ad copy và keyword SEO cho sản phẩm theo đúng mẫu template.'
+        },
+        {
+          role: 'user',
+          content: `Tên sản phẩm: ${productName}\nDanh mục: ${category}\nKhách hàng mục tiêu: ${audience}\nPhong cách: ${tone}\nKeyword: ${keyword}\nTemplate: ${template}\nHãy trả về JSON với cấu trúc: {"title":"...","description":"...","benefits":[...],"adCopy":"...","seo":"..."}`
+        }
+      ],
+      response_format: { type: 'json_object' }
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw);
+
+    return {
+      title: parsed.title || `${productName} - ${keyword}`,
+      description: parsed.description || '',
+      benefits: Array.isArray(parsed.benefits) ? parsed.benefits : [],
+      adCopy: parsed.adCopy || '',
+      seo: parsed.seo || '',
+      template,
+      mode: 'ai'
+    };
+  } catch (error) {
+    console.error('OpenAI error:', error.message);
+    return generateFallbackCopy({ productName, category, audience, tone, keyword, template });
+  }
+}
+
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID || '',
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  callbackURL: '/auth/google/callback'
+}, async (accessToken, refreshToken, profile, done) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return done(new Error('Google OAuth is not configured'));
+  }
+
+  const email = profile.emails?.[0]?.value || `${profile.id}@google.local`;
+  const users = await getUsersDb();
+  let user = users.find(u => u.email === email && (u.provider || 'local') === 'google');
+  if (!user) {
+    user = {
+      id: Date.now().toString(),
+      email,
+      name: profile.displayName || 'Google User',
+      password: '',
+      provider: 'google',
+      plan: 'free',
+      createdAt: new Date().toISOString()
+    };
+    await insertUserDb(user);
+  }
+  return done(null, user);
+}));
+
+passport.use(new GitHubStrategy({
+  clientID: process.env.GITHUB_CLIENT_ID || '',
+  clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+  callbackURL: '/auth/github/callback'
+}, async (accessToken, refreshToken, profile, done) => {
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return done(new Error('GitHub OAuth is not configured'));
+  }
+
+  const email = profile.emails?.[0]?.value || `${profile.username}@github.local`;
+  const users = await getUsersDb();
+  let user = users.find(u => u.email === email && (u.provider || 'local') === 'github');
+  if (!user) {
+    user = {
+      id: Date.now().toString(),
+      email,
+      name: profile.username || 'GitHub User',
+      password: '',
+      provider: 'github',
+      plan: 'free',
+      createdAt: new Date().toISOString()
+    };
+    await insertUserDb(user);
+  }
+  return done(null, user);
+}));
+
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const users = await getUsersDb();
+    const user = users.find(u => String(u.id) === String(id));
+    done(null, user || null);
+  } catch (error) {
+    done(error, null);
+  }
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, message: 'ProductCopy Pro API is running' });
+});
+
+app.get('/api/config', (req, res) => {
+  res.json({
+    googleAuth: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    githubAuth: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+    stripeEnabled: !!(process.env.STRIPE_SECRET_KEY),
+    databaseEnabled: !!(process.env.DATABASE_URL)
+  });
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  ensureDataFiles();
+  const { email, password, name } = req.body || {};
+
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+  const users = await getUsersDb();
+  const exist = users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+  if (exist) return res.status(409).json({ error: 'User already exists' });
+
+  const user = {
+    id: Date.now().toString(),
+    email: email.toLowerCase(),
+    name: name || 'New User',
+    password: bcrypt.hashSync(password, 10),
+    provider: 'local',
+    plan: 'free',
+    createdAt: new Date().toISOString()
+  };
+
+  await insertUserDb(user);
+  const token = signToken(user);
+  return res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  ensureDataFiles();
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+  const users = await getUsersDb();
+  const user = users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const valid = bcrypt.compareSync(password, user.password || '');
+  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const token = signToken(user);
+  return res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+});
+
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  const users = await getUsersDb();
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+});
+
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.status(503).json({ error: 'Google OAuth is not configured' });
+  }
+  passport.authenticate('google', { failureRedirect: '/?oauth=error' }, async (err, user) => {
+    if (err || !user) return res.redirect('/?oauth=error');
+    const token = signToken(user);
+    const redirect = `/?oauth=google&token=${encodeURIComponent(token)}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, plan: user.plan }))}`;
+    res.redirect(redirect);
+  })(req, res, next);
+});
+
+app.get('/auth/github', passport.authenticate('github', { scope: ['user:email'] }));
+app.get('/auth/github/callback', (req, res, next) => {
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.status(503).json({ error: 'GitHub OAuth is not configured' });
+  }
+  passport.authenticate('github', { failureRedirect: '/?oauth=error' }, async (err, user) => {
+    if (err || !user) return res.redirect('/?oauth=error');
+    const token = signToken(user);
+    const redirect = `/?oauth=github&token=${encodeURIComponent(token)}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, plan: user.plan }))}`;
+    res.redirect(redirect);
+  })(req, res, next);
+});
+
+app.post('/api/billing/checkout', authMiddleware, async (req, res) => {
+  if (!stripe) {
+    return res.json({ demo: true, mode: 'demo', message: 'Stripe billing is not configured yet. This is a demo checkout flow.' });
+  }
+
+  const { plan } = req.body || {};
+  const prices = {
+    pro: 'price_pro_demo',
+    agency: 'price_agency_demo'
+  };
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{
+        price: prices[plan] || 'price_pro_demo',
+        quantity: 1
+      }],
+      success_url: 'http://localhost:3000/?checkout=success',
+      cancel_url: 'http://localhost:3000/?checkout=cancelled'
+    });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Stripe checkout failed' });
+  }
+});
+
+app.post('/api/generate', authMiddleware, async (req, res) => {
+  const { productName, category, audience, tone, keyword, template } = req.body || {};
+  if (!productName || !category) {
+    return res.status(400).json({ error: 'productName and category are required' });
+  }
+
+  const copy = await generateAIProductCopy({ productName, category, audience, tone, keyword, template });
+
+  const entry = {
+    id: Date.now().toString(),
+    userId: req.user.id,
+    createdAt: new Date().toISOString(),
+    payload: { productName, category, audience, tone, keyword, template },
+    result: copy
+  };
+
+  await saveHistoryDb(entry);
+  res.json({ success: true, result: copy });
+});
+
+app.get('/api/history', authMiddleware, async (req, res) => {
+  const history = await getHistoryDb(req.user.id);
+  res.json({ history });
+});
+
+app.delete('/api/history/:id', authMiddleware, async (req, res) => {
+  if (!useDatabase) {
+    const history = readJson(HISTORY_FILE);
+    const updated = history.filter(item => !(item.id === req.params.id && item.userId === req.user.id));
+    writeJson(HISTORY_FILE, updated);
+    return res.json({ success: true });
+  }
+
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  await client.query('DELETE FROM history WHERE id = $1 AND user_id = $2', [Number(req.params.id), Number(req.user.id)]);
+  await client.end();
+  res.json({ success: true });
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+async function startServer() {
+  ensureDataFiles();
+  await initDatabase();
+  app.listen(PORT, () => {
+    console.log(`ProductCopy Pro server running at http://localhost:${PORT}`);
+  });
+}
+
+startServer().catch(error => {
+  console.error('Failed to start server', error);
+  process.exit(1);
+});

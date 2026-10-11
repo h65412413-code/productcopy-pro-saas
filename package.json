@@ -1,7 +1,7 @@
 {
   "name": "productcopy-pro-saas",
-  "version": "1.0.0",
-  "description": "ProductCopy Pro SaaS: AI-powered product copy generator with auth, dashboard, pricing and history.",
+  "version": "2.0.0",
+  "description": "ProductCopy Pro SaaS — professional AI marketing copy generator with auth, billing, social login hooks, and templates.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,13 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-session": "^1.18.0",
     "jsonwebtoken": "^9.0.2",
-    "openai": "^4.36.0"
+    "openai": "^4.36.0",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "pg": "^8.16.0",
+    "stripe": "^16.8.0"
   }
 }

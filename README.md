@@ -1,46 +1,9 @@
-# ProductCopy Pro SaaS
-
-A SaaS-style product copy generator with:
-- Login / signup
-- History tracking
-- Pricing page
-- Dashboard UI
-- AI-powered generation with fallback local generator
-
-## Run locally
-
-```bash
-npm install
-npm start
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-## Features
-
-- Email/password auth
-- JWT session
-- Save generated copy to history
-- Pricing section
-- Dashboard to generate product copy
-- OpenAI integration via `OPENAI_API_KEY` if available
-- Local fallback generator if no API key present
-
-## Environment variables
-
-Create a `.env` file:
-
-```bash
-JWT_SECRET=your-secret
-OPENAI_API_KEY=your-key-here
-```
-
-## Monetization model
-
-- Free: 5 generations / month
-- Pro: $19/month
-- Agency: $49/month
+JWT_SECRET=change_this_secret
+SESSION_SECRET=change_this_session_secret
+OPENAI_API_KEY=
+STRIPE_SECRET_KEY=
+DATABASE_URL=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=

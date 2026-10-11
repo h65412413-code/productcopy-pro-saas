@@ -1,375 +1,412 @@
-const API = {
-  base: window.location.origin,
-  getToken() {
-    return localStorage.getItem('productcopy_token') || '';
-  },
-  authHeaders() {
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.getToken()}`
-    };
-  },
-  async request(path, options = {}) {
-    const res = await fetch(`${this.base}${path}`, {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        ...(options.noAuth ? {} : this.authHeaders())
-      }
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Request failed');
-    return data;
+:root {
+  --bg-1: #040b16;
+  --bg-2: #0d1b2a;
+  --bg-3: #121d2d;
+  --panel: rgba(10, 18, 31, 0.82);
+  --panel-strong: #0d1727;
+  --muted: #9dadc8;
+  --text: #edf5ff;
+  --primary: #7dd3fc;
+  --secondary: #4ade80;
+  --accent: #c084fc;
+  --warning: #fbbf24;
+  --line: rgba(148, 163, 184, 0.18);
+  --shadow: rgba(0, 0, 0, 0.32);
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, 'Segoe UI', sans-serif;
+  background: radial-gradient(circle at top, rgba(125, 211, 252, 0.1), transparent 28%), linear-gradient(135deg, var(--bg-1), var(--bg-2) 42%, var(--bg-3));
+  color: var(--text);
+}
+body.logged-in { background: #091320; }
+
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea {
+  font: inherit;
+}
+
+.container {
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 0 26px;
+}
+
+.brand {
+  font-size: 1.8rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: 1px solid var(--line);
+  background: rgba(15, 23, 42, 0.75);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn.primary {
+  background: linear-gradient(135deg, var(--secondary), var(--primary), var(--accent));
+  border: none;
+  color: #061a2c;
+  box-shadow: 0 14px 28px rgba(125, 211, 252, 0.25);
+}
+.btn.ghost {
+  background: rgba(125, 211, 252, 0.08);
+}
+.btn.danger {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.35);
+  color: #fecdd3;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.12fr 0.88fr;
+  gap: 28px;
+  align-items: center;
+  min-height: 500px;
+}
+
+.hero-copy {
+  padding: 20px 0;
+}
+
+.kicker {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  color: var(--primary);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(2.6rem, 5vw, 4.8rem);
+  line-height: 1.02;
+  letter-spacing: -0.06em;
+}
+.gradient-text {
+  background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-copy p {
+  margin: 0;
+  max-width: 620px;
+  font-size: 1.08rem;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.hero-actions {
+  margin-top: 26px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hero-card {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 24px 48px var(--shadow);
+}
+
+.preview-window {
+  background: rgba(2, 6, 23, 0.8);
+  border: 1px solid rgba(125, 211, 252, 0.15);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.preview-box {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.preview-box:last-child { margin-bottom: 0; }
+.preview-label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.preview-box strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.18rem;
+  line-height: 1.4;
+}
+.preview-box p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.section {
+  margin-top: 72px;
+}
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+.section-header h2 {
+  margin: 0;
+  font-size: clamp(1.9rem, 3vw, 2.7rem);
+}
+
+.trust-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  color: var(--muted);
+}
+.trust-pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 12px;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.pricing-card {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 22px;
+  position: relative;
+}
+.pricing-card.featured {
+  background: linear-gradient(180deg, rgba(13, 29, 40, 0.9), rgba(15, 23, 42, 0.9));
+  border-color: rgba(125, 211, 252, 0.45);
+  transform: translateY(-6px);
+}
+.pricing-badge {
+  display: inline-block;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.pricing-card h3 {
+  margin: 14px 0 4px;
+  font-size: 1.6rem;
+}
+.price {
+  font-size: 2.5rem;
+  font-weight: 900;
+  margin: 14px 0;
+}
+.price small {
+  font-size: 1rem;
+  color: var(--muted);
+}
+.pricing-card ul {
+  margin: 18px 0 20px;
+  padding-left: 18px;
+  line-height: 2;
+  color: var(--muted);
+}
+
+.auth-panel {
+  max-width: 420px;
+  margin: 40px auto 0;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.24);
+}
+.auth-panel h2 {
+  margin: 0 0 14px;
+  font-size: 1.8rem;
+}
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+.input, .select, .textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: rgba(10, 18, 31, 0.8);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--text);
+}
+.textarea { resize: vertical; min-height: 110px; }
+
+.socials {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.social-btn {
+  background: rgba(125, 211, 252, 0.08);
+  color: var(--text);
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 12px;
+  padding: 12px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.switch-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+.switch-row button {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-shell {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 22px;
+}
+.sidebar, .main-panel {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 22px;
+}
+.sidebar h3, .main-panel h3 {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+.stat-box {
+  background: rgba(125, 211, 252, 0.06);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 16px;
+  padding: 18px 14px;
+}
+.stat-box .num {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.history-list {
+  margin-top: 20px;
+  display: grid;
+  gap: 12px;
+}
+.history-item {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+}
+.history-item strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.history-item small { color: var(--muted); }
+.output-block {
+  margin-top: 18px;
+  display: grid;
+  gap: 16px;
+}
+.output-card {
+  background: rgba(9, 14, 25, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+}
+.output-card h4 {
+  margin: 0 0 10px;
+  color: var(--primary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.output-card p, .output-card li {
+  color: var(--text);
+  line-height: 1.8;
+}
+.output-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.hidden { display: none !important; }
+
+@media (max-width: 920px) {
+  .hero,
+  .dashboard-shell,
+  .pricing-grid {
+    grid-template-columns: 1fr;
   }
-};
-
-const state = {
-  authMode: 'login',
-  token: localStorage.getItem('productcopy_token') || '',
-  user: JSON.parse(localStorage.getItem('productcopy_user') || 'null'),
-  history: [],
-  generated: null,
-  currentView: 'home'
-};
-
-function saveAuth(token, user) {
-  state.token = token;
-  state.user = user;
-  localStorage.setItem('productcopy_token', token);
-  localStorage.setItem('productcopy_user', JSON.stringify(user));
-}
-
-function clearAuth() {
-  state.token = '';
-  state.user = null;
-  localStorage.removeItem('productcopy_token');
-  localStorage.removeItem('productcopy_user');
-}
-
-function render() {
-  const loggedIn = !!state.user;
-  document.body.classList.toggle('logged-in', loggedIn);
-
-  const app = document.getElementById('app');
-  if (loggedIn) {
-    app.innerHTML = `
-      <div class="container dashboard">
-        <div class="topbar">
-          <div class="brand">ProductCopy Pro</div>
-          <div class="nav">
-            <button data-view="dashboard">Dashboard</button>
-            <button data-view="pricing">Pricing</button>
-            <button class="danger-btn" id="logoutBtn">Logout</button>
-          </div>
-        </div>
-
-        <div class="dashboard-shell">
-          <aside class="sidebar">
-            <h3>Workspace</h3>
-            <div class="stat-grid">
-              <div class="stat-box">
-                <div class="num" id="stats-credits">5</div>
-                <div>Uses</div>
-              </div>
-              <div class="stat-box">
-                <div class="num" id="stats-plan">Free</div>
-                <div>Plan</div>
-              </div>
-            </div>
-
-            <div class="history-list" id="historyList"></div>
-          </aside>
-
-          <main class="main-panel">
-            <h3>Generate product copy</h3>
-            <div class="form-grid">
-              <input class="input" id="productName" placeholder="Product name" value="Máy xay sinh tố mini" />
-              <select class="select" id="category">
-                <option>Gia dụng</option>
-                <option>Thời trang</option>
-                <option>Điện tử</option>
-                <option>Sắc đẹp</option>
-                <option>Thể thao</option>
-              </select>
-              <input class="input" id="audience" placeholder="Target audience" value="Phụ nữ 25-40 sống ở thành phố" />
-              <select class="select" id="tone">
-                <option>Thực dụng</option>
-                <option>Premium</option>
-                <option>Hấp dẫn</option>
-                <option>Đồng hồ giỏi</option>
-                <option>Vui tươi</option>
-              </select>
-              <input class="input" id="keyword" placeholder="Primary keyword" value="máy xay sinh tố mini" />
-              <button class="primary-btn" id="generateBtn">Generate Copy</button>
-            </div>
-
-            <div class="output-block hidden" id="outputBlock">
-              <div class="output-card">
-                <h4>Title</h4>
-                <p id="titleOut"></p>
-              </div>
-              <div class="output-card">
-                <h4>Short description</h4>
-                <p id="descriptionOut"></p>
-              </div>
-              <div class="output-card">
-                <h4>Benefits</h4>
-                <ul id="benefitsOut"></ul>
-              </div>
-              <div class="output-card">
-                <h4>Ad copy</h4>
-                <p id="adCopyOut"></p>
-              </div>
-              <div class="output-card">
-                <h4>SEO keywords</h4>
-                <p id="seoOut"></p>
-              </div>
-            </div>
-          </main>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('logoutBtn').addEventListener('click', logout);
-    document.getElementById('generateBtn').addEventListener('click', generateCopy);
-    loadHistory();
-    return;
+  .topbar {
+    flex-wrap: wrap;
   }
-
-  app.innerHTML = `
-    <div class="container">
-      <div class="topbar">
-        <div class="brand">ProductCopy Pro</div>
-        <div class="nav">
-          <button data-view="home">Home</button>
-          <button data-view="pricing">Pricing</button>
-          <button class="primary-btn" data-auth="login">Login</button>
-        </div>
-      </div>
-
-      <section class="hero">
-        <div class="hero-copy">
-          <div class="kicker">AI-powered copywriting SaaS</div>
-          <h1>Turn any product into <span class="gradient-text">high-converting copy</span> in seconds.</h1>
-          <p>Generate product titles, ad copy, SEO keywords, benefits, and landing page descriptions for any product category — built for stores, agencies, and creators.</p>
-          <div class="hero-actions">
-            <button class="primary-btn" data-auth="login">Start free</button>
-            <button class="ghost-btn" data-view="pricing">View pricing</button>
-          </div>
-        </div>
-
-        <div class="hero-card">
-          <div class="preview-window">
-            <div class="preview-box">
-              <div class="small-label">Title</div>
-              <strong>Máy xay sinh tố mini - tiện lợi cho gia đình</strong>
-            </div>
-            <div class="preview-box">
-              <div class="small-label">Ad Copy</div>
-              <p>Tiết kiệm thời gian, dễ sử dụng, phù hợp cho mọi gia đình hiện đại.</p>
-            </div>
-            <div class="preview-box">
-              <div class="small-label">SEO</div>
-              <p>máy xay sinh tố mini, máy xay tiện lợi, máy xay gia đình</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="pricingSection">
-        <div class="section-header">
-          <h2>Simple pricing</h2>
-        </div>
-        <div class="pricing-grid">
-          <div class="pricing-card">
-            <div class="badge">Free</div>
-            <h3>Starter</h3>
-            <div class="price">$0 <small>/ mo</small></div>
-            <ul>
-              <li>5 generations / month</li>
-              <li>1 workspace</li>
-              <li>Basic keyword generation</li>
-            </ul>
-            <button class="ghost-btn" data-auth="login">Try free</button>
-          </div>
-
-          <div class="pricing-card featured">
-            <div class="badge">Most popular</div>
-            <h3>Pro</h3>
-            <div class="price">$19 <small>/ mo</small></div>
-            <ul>
-              <li>Unlimited generations</li>
-              <li>Save history</li>
-              <li>Dashboard usage stats</li>
-              <li>Better AI output</li>
-            </ul>
-            <button class="primary-btn" data-auth="login">Upgrade Pro</button>
-          </div>
-
-          <div class="pricing-card">
-            <div class="badge">Agency</div>
-            <h3>Scale</h3>
-            <div class="price">$49 <small>/ mo</small></div>
-            <ul>
-              <li>Multiple team members</li>
-              <li>Shared workspaces</li>
-              <li>Priority support</li>
-              <li>API access</li>
-            </ul>
-            <button class="ghost-btn" data-auth="login">Talk to sales</button>
-          </div>
-        </div>
-      </section>
-
-      <div class="auth-panel ${state.authMode === 'login' ? '' : 'hidden'}" id="loginBox">
-        <h2>Login</h2>
-        <div class="form-grid">
-          <input class="input" id="loginEmail" placeholder="Email" />
-          <input class="input" type="password" id="loginPassword" placeholder="Password" />
-          <button class="primary-btn" id="loginBtn">Login</button>
-        </div>
-        <div class="switch-row">
-          <span>Need an account?</span>
-          <button id="switchToRegister">Register</button>
-        </div>
-      </div>
-
-      <div class="auth-panel ${state.authMode === 'register' ? '' : 'hidden'}" id="registerBox">
-        <h2>Create account</h2>
-        <div class="form-grid">
-          <input class="input" id="registerName" placeholder="Full name" />
-          <input class="input" id="registerEmail" placeholder="Email" />
-          <input class="input" type="password" id="registerPassword" placeholder="Password" />
-          <button class="primary-btn" id="registerBtn">Create account</button>
-        </div>
-        <div class="switch-row">
-          <span>Already have an account?</span>
-          <button id="switchToLogin">Login</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('switchToRegister').onclick = () => { state.authMode = 'register'; render(); };
-  document.getElementById('switchToLogin').onclick = () => { state.authMode = 'login'; render(); };
-  document.getElementById('loginBtn').onclick = login;
-  document.getElementById('registerBtn').onclick = register;
-
-  document.querySelectorAll('[data-auth]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.authMode = 'login';
-      render();
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    });
-  });
-
-  document.querySelectorAll('[data-view="pricing"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('pricingSection').scrollIntoView({ behavior: 'smooth' });
-    });
-  });
-}
-
-async function login() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  try {
-    const data = await API.request('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-      noAuth: true
-    });
-    saveAuth(data.token, data.user);
-    render();
-  } catch (err) {
-    alert(err.message);
+  .socials {
+    grid-template-columns: 1fr;
   }
 }
-
-async function register() {
-  const name = document.getElementById('registerName').value.trim();
-  const email = document.getElementById('registerEmail').value.trim();
-  const password = document.getElementById('registerPassword').value;
-  try {
-    const data = await API.request('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, email, password }),
-      noAuth: true
-    });
-    saveAuth(data.token, data.user);
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function loadHistory() {
-  try {
-    const data = await API.request('/api/history');
-    state.history = data.history || [];
-    renderHistory();
-  } catch (error) {
-    console.warn(error.message);
-  }
-}
-
-function renderHistory() {
-  const list = document.getElementById('historyList');
-  if (!list) return;
-
-  if (!state.history.length) {
-    list.innerHTML = '<div class="history-item"><strong>No history yet</strong><small>Your generated copy will appear here.</small></div>';
-    return;
-  }
-
-  list.innerHTML = state.history.map(item => `
-    <div class="history-item">
-      <strong>${item.payload.productName || 'Product'}</strong>
-      <small>${new Date(item.createdAt).toLocaleDateString()}</small>
-      <div style="margin-top:8px; color:#cbd5e1;">${item.result.title || 'Generated copy'}</div>
-    </div>
-  `).join('');
-}
-
-async function generateCopy() {
-  const payload = {
-    productName: document.getElementById('productName').value,
-    category: document.getElementById('category').value,
-    audience: document.getElementById('audience').value,
-    tone: document.getElementById('tone').value,
-    keyword: document.getElementById('keyword').value
-  };
-
-  try {
-    const data = await API.request('/api/generate', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-
-    state.generated = data.result;
-    renderGenerated(data.result);
-    await loadHistory();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-function renderGenerated(result) {
-  const output = document.getElementById('outputBlock');
-  if (!output) return;
-
-  output.classList.remove('hidden');
-  document.getElementById('titleOut').textContent = result.title || '';
-  document.getElementById('descriptionOut').textContent = result.description || '';
-  const benefits = document.getElementById('benefitsOut');
-  benefits.innerHTML = (result.benefits || []).map(item => `<li>${item}</li>`).join('');
-  document.getElementById('adCopyOut').textContent = result.adCopy || '';
-  document.getElementById('seoOut').textContent = result.seo || '';
-}
-
-function logout() {
-  clearAuth();
-  render();
-}
-
-render();
